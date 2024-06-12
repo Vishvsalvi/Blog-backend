@@ -38,6 +38,9 @@ export const createUser = async (req: Request, res: Response) => {
                     { email },
                     { phoneNumber }
                 ]
+            },
+            include: {
+                blogs: true
             }
         })
 
@@ -73,11 +76,8 @@ export const signInUserWithEmail = async (req: Request, res: Response) => {
         const { email, password } = req.body;
 
         const existingUser = await prisma.user.findFirst({
-            where: {
-                OR: [
-                    { email },
-                ]
-            }
+            where: { email },
+                
         })
 
         if (!existingUser) {
