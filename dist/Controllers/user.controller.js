@@ -18,62 +18,70 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const prisma = new client_1.PrismaClient();
 const createToken = (id) => {
-    return jsonwebtoken_1.default.sign({ id }, process.env.JWT_SECRET);
+    const accessToken = jsonwebtoken_1.default.sign({ id }, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1d",
+    });
+    const refreshToken = jsonwebtoken_1.default.sign({ id }, process.env.REFRESH_TOKEN_SECRET, {
+        expiresIn: "10d",
+    });
+    return { accessToken, refreshToken };
 };
+// Create user
 const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { firstName, lastName, email, password, phoneNumber } = req.body;
         const existingUser = yield prisma.user.findFirst({
             where: {
-                OR: [
-                    { email },
-                    { phoneNumber }
-                ]
-            }
+                OR: [{ email }, { phoneNumber }],
+            },
         });
         if (existingUser) {
-            res.status(400).json({ message: "User already exists! Please login" });
+            return res.status(400).json({ message: "User already exists! Please login." });
         }
         const salt = yield bcrypt_1.default.genSalt();
         const encodedPassword = yield bcrypt_1.default.hash(password, salt);
         const newUser = yield prisma.user.create({
             data: {
-                firstName, lastName, email, password: encodedPassword, phoneNumber
-            }
+                firstName,
+                lastName,
+                email,
+                password: encodedPassword,
+                phoneNumber,
+            },
         });
-        const token = createToken(newUser.id);
-        return res.status(200).json({
-            newUser, token
-        });
+        const { accessToken, refreshToken } = createToken(newUser.id);
+        const options = { httpOnly: true, secure: true };
+        res.cookie("accessToken", accessToken, options);
+        res.cookie("refreshToken", refreshToken, options);
+        return res.status(201).json({ newUser });
     }
     catch (error) {
-        console.log(error);
-        res.status(500).json({ error });
+        console.error(error);
+        return res.status(500).json({ error: "Internal server error" });
     }
 });
 exports.createUser = createUser;
+// Sign in with email
 const signInUserWithEmail = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, password } = req.body;
-        const existingUser = yield prisma.user.findFirst({
-            where: {
-                OR: [
-                    { email },
-                ]
-            }
-        });
+        const existingUser = yield prisma.user.findFirst({ where: { email } });
         if (!existingUser) {
-            return res.status(400).json({ message: "User doesn't exist! Please create a new account" });
+            return res.status(400).json({ message: "User doesn't exist! Please create a new account." });
         }
         const passCheck = yield bcrypt_1.default.compare(password, existingUser.password);
         if (!passCheck) {
-            return res.status(401).json({ message: "Invalid credentials" });
+            return res.status(401).json({ message: "Invalid credentials." });
         }
-        const token = createToken(existingUser.id);
-        return res.status(200).json({ existingUser, token });
+        const { accessToken, refreshToken } = createToken(existingUser.id);
+        const options = { httpOnly: true, secure: true };
+        res.cookie("accessToken", accessToken, options);
+        res.cookie("refreshToken", refreshToken, options);
+        return res.status(200).json({ existingUser });
     }
     catch (error) {
-        return res.status(500).json({ message: error });
+        console.error(error);
+        return res.status(500).json({ error: "Internal server error" });
     }
 });
 exports.signInUserWithEmail = signInUserWithEmail;

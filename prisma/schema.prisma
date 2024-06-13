@@ -37,8 +37,8 @@ model Blog {
   author        User      @relation(fields: [authorId], references: [id])
   authorId      Int       
   comments      Comment[]
-  images        String[]
-  tags          String[]
+  images        String[]  @default([])
+  tags          String[]  @default([])
 }
 
 model Comment {
@@ -50,4 +50,7 @@ model Comment {
   authorId      Int
   blog          Blog      @relation(fields: [blogId], references: [id])
   blogId        Int
+  parent        Comment?  @relation("CommentToComment", fields: [parentId], references: [id])
+  parentId      Int?
+  children      Comment[] @relation("CommentToComment")
 }
